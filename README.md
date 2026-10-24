@@ -16,7 +16,17 @@ It downloads the latest release, puts `SideScroll.app` in `/Applications`, and o
 
 **Prefer a download?** Grab `SideScroll.dmg` from the [latest release](https://github.com/TCYTseven/SideScrollMac/releases/latest) and drag it to Applications. The app isn't notarized by Apple, so the first launch is blocked: open **System Settings → Privacy & Security**, scroll down, click **Open Anyway**. The Terminal line above skips this step.
 
-To remove it: `curl -fsSL https://raw.githubusercontent.com/TCYTseven/SideScrollMac/main/uninstall.sh | bash`
+The installer checks the download against the SHA-256 checksum GitHub publishes for it, updates an existing copy wherever it is installed, and links the `sidescroll` command-line tool.
+
+### Uninstall
+
+Either click the menu bar icon → **Uninstall SideScroll…**, or run:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/TCYTseven/SideScrollMac/main/uninstall.sh | bash
+```
+
+Both put every window back on screen, then remove the app, its login item, settings, caches, command-line tool and Accessibility entry.
 
 ### Recommended macOS settings
 
@@ -43,6 +53,14 @@ The setup guide (menu bar → Setup Guide…) links straight to each of these:
 - **Mouse.** Drag a window onto another column to reorder; resize a window by hand to set its column width; optional focus-follows-mouse.
 - **Look.** Configurable gaps and screen padding (down to zero), Dock-aware sizing, optional focus border, optional dimming of everything but the focused window, column position in the menu bar.
 - **Shortcuts.** Every action is rebindable, one action can have several shortcuts, and keys are stored by physical position so they work on AZERTY, QWERTZ and Dvorak.
+- **Strip indicator.** A frosted bar with each column's app icon appears while you navigate, shows where you are, then fades. Hold ⌃⌥ to keep it up; click a tile to jump there, drag a tile to reorder columns.
+- **Apps that refuse a size.** If an app won't go narrower than its minimum, SideScroll lets it keep its size and lays out around it instead of fighting.
+- **Ready after sleep.** After sleep, a locked screen or displays waking up, SideScroll sets itself up again on its own.
+- **Native fullscreen left alone.** Fullscreen windows leave the strip and come back when you exit fullscreen.
+- **Guided start and Mac Setup.** The first run teaches the strip and five shortcuts. Mac Setup checks your macOS settings and warns when another window manager (Rectangle, Magnet, Amethyst, AeroSpace, yabai…) is running.
+- **Settings apply instantly.** No Save button, no restart.
+- **Mouse follows focus** (optional), alongside focus follows mouse.
+- **Automation.** A `sidescroll://` URL scheme, a `sidescroll` command-line tool and Raycast script commands.
 
 ## Default shortcuts
 
@@ -69,9 +87,29 @@ The setup guide (menu bar → Setup Guide…) links straight to each of these:
 | Float / unfloat window | ⌃⌥T |
 | Pin to left / right edge (same key unpins) | ⌃⌥P / ⌃⌥⇧P |
 | Focus next display | ⌃⌥D |
-| Move window to next display | ⌃⌥⇧D |
+| Send window to next display | ⌃⌥N or ⌃⌥⇧D |
 | Re-tile everything | ⌃⌥⇧0 |
 | Pause / resume tiling, close window | unbound; set them in Settings |
+
+## Automation
+
+Every action has a URL, so anything that can open a link can drive SideScroll:
+
+```bash
+open -g sidescroll://focus-right
+open -g sidescroll://cycle-width
+open -g sidescroll://pause      # also: resume, toggle, settings
+```
+
+The installer links a `sidescroll` command (or use Settings → General → Install Command-Line Tool):
+
+```bash
+sidescroll focus-left
+sidescroll move-to-next-display
+sidescroll --list               # every command
+```
+
+For Raycast, add the [`raycast`](raycast) folder under Settings → Extensions → Script Commands. Closing windows is deliberately not available from URLs, so a link can never close your work.
 
 ## Build from source
 
@@ -103,7 +141,8 @@ open build/SideScroll.app
 - Settings, shortcuts and the saved session are JSON files in `~/Library/Application Support/SideScroll`.
 - Builds are signed ad hoc, so after an update macOS asks for Accessibility access again. The installer clears the old entry so the prompt comes up cleanly.
 - macOS won't let a window go fully off screen, so scrolled-away windows are parked with one point showing at the screen edge (on a side with no neighbouring display).
-- Quitting SideScroll moves every parked window back onto the screen.
+- Quitting SideScroll (including `kill` / `pkill`) moves every parked window back onto the screen.
+- Updates from the menu download the release zip, verify its SHA-256 against the digest GitHub publishes and check it's a SideScroll bundle before replacing the app. No downloaded script is executed.
 
 ## License
 

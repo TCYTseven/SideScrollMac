@@ -1,0 +1,25 @@
+#!/bin/sh
+# sidescroll: control SideScroll from the command line.
+#   sidescroll focus-left
+#   sidescroll pause | resume | toggle | settings
+#   sidescroll --list
+set -e
+
+self=$(realpath "$0" 2>/dev/null || echo "$0")
+app_bin="$(dirname "$self")/../MacOS/SideScroll"
+
+usage() {
+  echo "usage: sidescroll <command>"
+  echo "       sidescroll --list    show every command"
+}
+
+case "${1:-}" in
+  ""|-h|--help|help) usage; exit 0 ;;
+  -l|--list|list)
+    if [ -x "$app_bin" ]; then "$app_bin" --list-actions; else echo "SideScroll.app not found next to this script" >&2; exit 1; fi
+    exit 0 ;;
+esac
+
+cmd=$(printf '%s' "$1" | tr -cd 'A-Za-z0-9-')
+[ -n "$cmd" ] || { usage; exit 1; }
+open -g "sidescroll://$cmd"

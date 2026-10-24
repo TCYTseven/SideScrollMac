@@ -35,8 +35,11 @@ extension WindowManager {
     ///   - offset: overrides the strip's view offset (live trackpad scrolling).
     ///   - velocity: horizontal speed in points/s handed to the springs.
     func layout(_ key: StripKey, animate: Bool, offset: Double? = nil, velocity: Double = 0) {
-        guard store.enabled, let d = display(for: key), activeKey(for: d) == key, let strip = strips[key] else { return }
+        guard store.enabled, let d = display(for: key), activeKey(for: d) == key, strips[key] != nil else { return }
+        syncMinWidths(key)
+        guard let strip = strips[key] else { return }
         let result = Layout.compute(strip, params(for: d), viewOffset: offset)
+        var resized: [WinID: CGSize] = [:]
         let now = CACurrentMediaTime()
         let stiffness = springStiffness(speed: config.animationSpeed)
         let shouldAnimate = animate && config.animationsEnabled
@@ -54,6 +57,7 @@ extension WindowManager {
             let wasVisible = d.frame.insetBy(dx: 2, dy: 0).intersects(current)
             if sizeChanged {
                 AXApp.withoutEnhancedUI(mw.ax.pid) { mw.ax.setSize(pl.frame.size) }
+                resized[pl.window] = pl.frame.size
             }
             if shouldAnimate && (pl.visible || wasVisible) && moved {
                 animator.animate(mw.ax, from: current, to: pl.frame, stiffness: stiffness, velocityX: velocity)
@@ -64,10 +68,45 @@ extension WindowManager {
             mw.lastFrame = pl.frame
         }
         lastLayout[key] = result
+        if !resized.isEmpty {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
+                self?.checkRefusedSizes(key, resized)
+            }
+        }
         updateTabBars()
         updateDecorations()
         updateStatus()
         if offset == nil { scheduleSave() }
+    }
+
+    // MARK: Apps that refuse a size
+
+    /// Columns are at least as wide as the widest minimum of their windows.
+    func syncMinWidths(_ key: StripKey) {
+        guard var s = strips[key] else { return }
+        func minWidth(_ c: Column) -> Double { c.windows.map { windows[$0]?.minWidth ?? 0 }.max() ?? 0 }
+        for i in s.columns.indices { s.columns[i].minWidth = minWidth(s.columns[i]) }
+        if var p = s.pinnedLeft { p.minWidth = minWidth(p); s.pinnedLeft = p }
+        if var p = s.pinnedRight { p.minWidth = minWidth(p); s.pinnedRight = p }
+        if s != strips[key] { strips[key] = s }
+    }
+
+    /// An app that keeps a window wider than asked keeps that width; the strip
+    /// lays out around it instead of fighting it.
+    func checkRefusedSizes(_ key: StripKey, _ requested: [WinID: CGSize]) {
+        var changed = false
+        for (id, want) in requested {
+            guard let mw = windows[id], let actual = mw.ax.frame?.size else { continue }
+            if actual.width > want.width + 2 && abs(mw.minWidth - actual.width) > 1 {
+                mw.minWidth = actual.width
+                changed = true
+            }
+            if var f = mw.lastFrame, abs(f.width - actual.width) > 1 || abs(f.height - actual.height) > 1 {
+                f.size = actual
+                mw.lastFrame = f
+            }
+        }
+        if changed { layout(key, animate: true) }
     }
 
     // MARK: Decorations

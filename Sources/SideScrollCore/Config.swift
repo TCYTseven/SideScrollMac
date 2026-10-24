@@ -48,6 +48,7 @@ public struct Config: Codable, Equatable {
     public var swipeSensitivity: Double = 1.0
     public var modifierScroll: Bool = true
     public var focusFollowsMouse: Bool = false
+    public var mouseFollowsFocus: Bool = false
     public var dragToReorder: Bool = true
 
     // Look
@@ -59,6 +60,7 @@ public struct Config: Codable, Equatable {
     public var dimUnfocused: Bool = false
     public var dimAmount: Double = 0.25
     public var showPositionInMenuBar: Bool = true
+    public var showStripIndicator: Bool = true
 
     // Behaviour
     public var autoFloatDialogs: Bool = true
@@ -86,9 +88,9 @@ public struct Config: Codable, Equatable {
     enum CodingKeys: String, CodingKey {
         case gap, outerPadding, widthPresets, defaultWidth, resizeStep, centerMode, newWindowPosition,
              keepOriginalHeight, tabBarHeight, respectDock,
-             swipeEnabled, swipeFingers, swipeNatural, swipeSensitivity, modifierScroll, focusFollowsMouse, dragToReorder,
+             swipeEnabled, swipeFingers, swipeNatural, swipeSensitivity, modifierScroll, focusFollowsMouse, mouseFollowsFocus, dragToReorder,
              animationsEnabled, animationSpeed, focusBorder, focusBorderWidth, focusBorderColor, dimUnfocused, dimAmount,
-             showPositionInMenuBar,
+             showPositionInMenuBar, showStripIndicator,
              autoFloatDialogs, restoreSession, preventFocusStealing, rules, excludedDisplays
     }
 
@@ -114,6 +116,7 @@ public struct Config: Codable, Equatable {
         swipeSensitivity = v(.swipeSensitivity, d.swipeSensitivity)
         modifierScroll = v(.modifierScroll, d.modifierScroll)
         focusFollowsMouse = v(.focusFollowsMouse, d.focusFollowsMouse)
+        mouseFollowsFocus = v(.mouseFollowsFocus, d.mouseFollowsFocus)
         dragToReorder = v(.dragToReorder, d.dragToReorder)
         animationsEnabled = v(.animationsEnabled, d.animationsEnabled)
         animationSpeed = v(.animationSpeed, d.animationSpeed)
@@ -123,6 +126,7 @@ public struct Config: Codable, Equatable {
         dimUnfocused = v(.dimUnfocused, d.dimUnfocused)
         dimAmount = v(.dimAmount, d.dimAmount)
         showPositionInMenuBar = v(.showPositionInMenuBar, d.showPositionInMenuBar)
+        showStripIndicator = v(.showStripIndicator, d.showStripIndicator)
         autoFloatDialogs = v(.autoFloatDialogs, d.autoFloatDialogs)
         restoreSession = v(.restoreSession, d.restoreSession)
         preventFocusStealing = v(.preventFocusStealing, d.preventFocusStealing)

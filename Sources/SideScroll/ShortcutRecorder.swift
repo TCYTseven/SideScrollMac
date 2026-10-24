@@ -14,19 +14,35 @@ final class RecorderField: NSView {
     override var acceptsFirstResponder: Bool { true }
     override var intrinsicContentSize: NSSize { NSSize(width: 120, height: 22) }
 
-    override func mouseDown(with event: NSEvent) {
-        window?.makeFirstResponder(self)
-    }
+    private var resignObserver: NSObjectProtocol?
 
-    override func becomeFirstResponder() -> Bool {
+    // Recording starts only on a click, never because the window picked this
+    // view as its first responder, and it always ends when focus leaves.
+    override func mouseDown(with event: NSEvent) {
+        guard window?.makeFirstResponder(self) == true else { return }
         recording = true
         Store.shared.recordingShortcut = true
-        return true
     }
 
     override func resignFirstResponder() -> Bool {
         stop()
         return true
+    }
+
+    override func viewWillMove(toWindow newWindow: NSWindow?) {
+        stop()
+        if let o = resignObserver { NotificationCenter.default.removeObserver(o) }
+        resignObserver = nil
+        guard let newWindow else { return }
+        resignObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.didResignKeyNotification, object: newWindow, queue: .main) { [weak self] _ in
+            self?.stop()
+        }
+    }
+
+    deinit {
+        if let o = resignObserver { NotificationCenter.default.removeObserver(o) }
+        if recording { Store.shared.recordingShortcut = false }
     }
 
     private func stop() {

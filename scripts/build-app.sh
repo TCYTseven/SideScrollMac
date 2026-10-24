@@ -22,6 +22,8 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN_DIR/SideScroll" "$APP/Contents/MacOS/SideScroll"
 sed -e "s/__VERSION__/$VERSION/" -e "s/__BUILD__/$BUILD/" Resources/Info.plist > "$APP/Contents/Info.plist"
 printf 'APPL????' > "$APP/Contents/PkgInfo"
+cp Resources/sidescroll "$APP/Contents/Resources/sidescroll"
+chmod +x "$APP/Contents/Resources/sidescroll"
 
 echo "==> Icon"
 ICONSET="build/AppIcon.iconset"

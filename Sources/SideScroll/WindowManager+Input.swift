@@ -18,6 +18,10 @@ extension WindowManager {
         if let m = NSEvent.addGlobalMonitorForEvents(matching: .scrollWheel, handler: { [weak self] e in
             self?.scrollWheel(e)
         }) { eventMonitors.append(m) }
+
+        if let m = NSEvent.addGlobalMonitorForEvents(matching: .flagsChanged, handler: { [weak self] e in
+            self?.modifiersChanged(e.modifierFlags)
+        }) { eventMonitors.append(m) }
     }
 
     // MARK: Trackpad swipe
@@ -28,7 +32,11 @@ extension WindowManager {
     }
 
     func handleSwipe(_ phase: TrackpadMonitor.Phase) {
-        guard store.enabled else { return }
+        guard store.enabled else {
+            // Never leave a swipe half-open; it blocks reconciling.
+            swipeKey = nil
+            return
+        }
         switch phase {
         case .began:
             guard let d = Displays.containing(point: Displays.mouseLocation, in: displays) else { return }
@@ -53,6 +61,7 @@ extension WindowManager {
             if off > maxOff { off = maxOff + (off - maxOff) * 0.3 }
             swipeOffset = off
             layout(key, animate: false, offset: off)
+            showIndicator(key, persistent: true)
 
         case .ended(let velocity):
             guard let key = swipeKey, var s = strips[key] else { swipeKey = nil; return }
@@ -71,11 +80,13 @@ extension WindowManager {
                 suppressScrollUntil = CACurrentMediaTime() + 0.6
                 focusStrip(key)
             }
+            showIndicator(key)
 
         case .cancelled:
             guard let key = swipeKey else { return }
             swipeKey = nil
             layout(key, animate: true)
+            showIndicator(key)
         }
     }
 

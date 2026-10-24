@@ -16,6 +16,9 @@ public struct Column: Equatable, Codable {
     public var isTabbed: Bool
     /// Relative heights of stacked windows. Missing entries count as 1.
     public var heightWeights: [WinID: Double]
+    /// Smallest width (points) an app in this column accepts. Apps that refuse
+    /// a narrower size get their size and the strip lays out around them.
+    public var minWidth: Double = 0
 
     public init(windows: [WinID], width: Double, isTabbed: Bool = false) {
         self.id = UUID()
