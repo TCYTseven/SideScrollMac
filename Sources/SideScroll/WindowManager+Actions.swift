@@ -67,8 +67,9 @@ extension WindowManager {
         layout(key, animate: true)
         if s.focusedWindow != before || [.focusUp, .focusDown, .toggleTabbed].contains(action) {
             suppressScrollUntil = 0
-            focusStrip(key)
+            focusStrip(key, warp: true)
         }
+        showIndicator(key)
     }
 
     // MARK: Float
@@ -117,6 +118,7 @@ extension WindowManager {
         let key = activeKey(for: next)
         if strips[key]?.focusedWindow != nil {
             focusStrip(key)
+            showIndicator(key)
         } else {
             focusedID = nil
             updateDecorations()
@@ -140,6 +142,7 @@ extension WindowManager {
         layout(from, animate: true)
         scrollToFocus(to)
         layout(to, animate: false)
-        focusStrip(to)
+        focusStrip(to, warp: true)
+        showIndicator(to)
     }
 }

@@ -106,11 +106,15 @@ extension WindowManager {
         }
     }
 
-    /// Gives focus to whatever the strip says is focused.
-    func focusStrip(_ key: StripKey) {
+    /// Gives focus to whatever the strip says is focused. `warp` moves the
+    /// mouse along when "mouse follows focus" is on.
+    func focusStrip(_ key: StripKey, warp: Bool = false) {
         guard let id = strips[key]?.focusedWindow, let mw = windows[id] else { return }
         focusedID = id
         mw.ax.focus()
+        if warp && config.mouseFollowsFocus, let f = mw.lastFrame {
+            CGWarpMouseCursorPosition(CGPoint(x: f.midX, y: f.midY))
+        }
     }
 
     func selectTab(column: UUID, index: Int) {
@@ -164,6 +168,9 @@ extension WindowManager {
         if resized {
             // Resizing by hand sets the column width (and the height share in a stack).
             let vp = Layout.viewport(s, params(for: d))
+            // A hand resize is the new truth, including any earlier "refused" width.
+            mw.minWidth = 0
+            if case .column(let ci, _)? = s.locate(id) { s.columns[ci].minWidth = 0 }
             s.focusWindow(id)
             s.setWidth((actual.width + config.gap) / (vp.width + config.gap))
             if case .column(let ci, _)? = s.locate(id), s.columns[ci].windows.count > 1, !s.columns[ci].isTabbed {

@@ -174,6 +174,26 @@ final class StripTests: XCTestCase {
         XCTAssertEqual(c.defaultWidth, 0.5)
     }
 
+    func testActionSlugs() {
+        XCTAssertEqual(Action.focusLeft.slug, "focus-left")
+        XCTAssertEqual(Action.focusColumn3.slug, "focus-column-3")
+        XCTAssertEqual(Action(slug: "move-to-next-display"), .moveToNextDisplay)
+        XCTAssertEqual(Action(slug: "focusRight"), .focusRight)
+        XCTAssertNil(Action(slug: "nope"))
+        XCTAssertFalse(Action.closeWindow.allowedFromAutomation)
+        for a in Action.allCases { XCTAssertEqual(Action(slug: a.slug), a) }
+    }
+
+    func testMinWidthWidensColumn() {
+        var s = makeStrip(2)
+        s.columns[0].minWidth = 700
+        let p = LayoutParams(area: CGRect(x: 0, y: 0, width: 1000, height: 800),
+                             screen: CGRect(x: 0, y: 0, width: 1000, height: 800), gap: 10)
+        let r = Layout.compute(s, p, viewOffset: 0)
+        XCTAssertEqual(r.placements[0].frame.width, 700)
+        XCTAssertEqual(r.placements[1].frame.minX, 710)
+    }
+
     func testSpringSettles() {
         var sp = Spring(value: 0, target: 100, stiffness: 700)
         for _ in 0..<120 { sp.step(1.0 / 60) }

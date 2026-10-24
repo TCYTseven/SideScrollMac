@@ -15,9 +15,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         setUpStatusItem()
+        // sidescroll:// links (command-line tool, Raycast).
+        NSAppleEventManager.shared().setEventHandler(self, andSelector: #selector(handleURLEvent(_:reply:)),
+                                                     forEventClass: AEEventClass(kInternetEventClass),
+                                                     andEventID: AEEventID(kAEGetURL))
 
         if AX.isTrusted(prompt: false) {
             startManaging()
+            // First run, or another window manager is fighting us: show Mac Setup.
+            if !OnboardingWindowController.hasCompletedFirstRun || !MacSetup.runningConflicts().isEmpty {
+                onboarding.show()
+            }
         } else {
             onboarding.show()
             // Start on our own as soon as access is granted.
@@ -30,10 +38,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
 
         UpdateChecker.shared.checkInBackground()
+        NotificationCenter.default.addObserver(forName: .showMacSetup, object: nil, queue: .main) { [weak self] _ in
+            self?.onboarding.show()
+        }
+        NotificationCenter.default.addObserver(forName: .uninstallRequested, object: nil, queue: .main) { [weak self] _ in
+            self?.uninstall()
+        }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
         manager?.stop()
+    }
+
+    @objc private func handleURLEvent(_ event: NSAppleEventDescriptor, reply: NSAppleEventDescriptor) {
+        guard let str = event.paramDescriptor(forKeyword: keyDirectObject)?.stringValue,
+              let url = URL(string: str) else { return }
+        Automation.handle(url, manager: manager) { [weak self] in self?.openSettings() }
     }
 
     private func startManaging() {
@@ -101,7 +121,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         menu.addItem(item("Settings…", #selector(openSettings), key: ","))
         menu.addItem(item("Keyboard Shortcuts…", #selector(openShortcuts)))
-        menu.addItem(item("Setup Guide…", #selector(showOnboarding)))
+        menu.addItem(item("Mac Setup & Guide…", #selector(showOnboarding)))
         menu.addItem(.separator())
 
         let login = item("Launch at Login", #selector(toggleLoginItem))
@@ -111,6 +131,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(update)
         menu.addItem(item("About SideScroll", #selector(about)))
         menu.addItem(.separator())
+        menu.addItem(item("Uninstall SideScroll…", #selector(uninstall)))
         menu.addItem(item("Quit SideScroll", #selector(quit), key: "q"))
     }
 
@@ -122,7 +143,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func toggleEnabled() { store.enabled.toggle() }
     @objc private func retile() { manager?.perform(.retile) }
-    @objc private func openSettings() { settings.show(tab: .general) }
+    @objc func openSettings() { settings.show(tab: .general) }
+    @objc private func uninstall() {
+        Uninstaller.run { [weak self] in
+            self?.manager?.stop()
+            self?.manager = nil
+        }
+    }
     @objc private func openShortcuts() { settings.show(tab: .shortcuts) }
     @objc private func showOnboarding() { onboarding.show() }
     @objc private func toggleLoginItem() { LoginItem.setEnabled(!LoginItem.isEnabled) }

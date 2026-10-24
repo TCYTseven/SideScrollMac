@@ -81,6 +81,30 @@ public enum Action: String, Codable, CaseIterable, Identifiable {
         }
     }
 
+    /// kebab-case name used by the URL scheme and the command-line tool,
+    /// e.g. focusLeft -> "focus-left", focusColumn3 -> "focus-column-3".
+    public var slug: String {
+        var out = ""
+        for ch in rawValue {
+            if ch.isUppercase || (ch.isNumber && !(out.last?.isNumber ?? false)) {
+                out += "-" + ch.lowercased()
+            } else {
+                out.append(ch)
+            }
+        }
+        return out
+    }
+
+    public init?(slug: String) {
+        let s = slug.lowercased()
+        guard let a = Action.allCases.first(where: { $0.slug == s || $0.rawValue.lowercased() == s }) else { return nil }
+        self = a
+    }
+
+    /// Actions outside callers (URL scheme, scripts) may trigger. Closing a
+    /// window is left out so a link can never destroy work.
+    public var allowedFromAutomation: Bool { self != .closeWindow }
+
     public static let groups = ["Navigate", "Move", "Size", "Stacks & tabs", "Float & pin", "Jump to column", "Displays", "Other"]
 }
 
@@ -121,7 +145,7 @@ public enum Key {
     public static let six: UInt32 = 0x16, five: UInt32 = 0x17, equal: UInt32 = 0x18, nine: UInt32 = 0x19
     public static let seven: UInt32 = 0x1A, minus: UInt32 = 0x1B, eight: UInt32 = 0x1C, zero: UInt32 = 0x1D
     public static let rightBracket: UInt32 = 0x1E, leftBracket: UInt32 = 0x21, p: UInt32 = 0x23
-    public static let l: UInt32 = 0x25, j: UInt32 = 0x26, k: UInt32 = 0x28, m: UInt32 = 0x2E
+    public static let l: UInt32 = 0x25, j: UInt32 = 0x26, k: UInt32 = 0x28, n: UInt32 = 0x2D, m: UInt32 = 0x2E
     public static let home: UInt32 = 0x73, end: UInt32 = 0x77
     public static let left: UInt32 = 0x7B, right: UInt32 = 0x7C, down: UInt32 = 0x7D, up: UInt32 = 0x7E
     public static let digits: [UInt32] = [one, two, three, four, five, six, seven, eight, nine]
@@ -179,7 +203,7 @@ public struct Bindings: Codable, Equatable {
         b[.pinLeft] = [KeyCombo(Key.p, co)]
         b[.pinRight] = [KeyCombo(Key.p, cos)]
         b[.focusNextDisplay] = [KeyCombo(Key.d, co)]
-        b[.moveToNextDisplay] = [KeyCombo(Key.d, cos)]
+        b[.moveToNextDisplay] = [KeyCombo(Key.n, co), KeyCombo(Key.d, cos)]
         b[.retile] = [KeyCombo(Key.zero, cos)]
         b[.toggleEnabled] = []
         b[.closeWindow] = []

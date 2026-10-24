@@ -31,6 +31,11 @@ enum SettingsTab: String, CaseIterable, Identifiable {
     }
 }
 
+extension Notification.Name {
+    static let showMacSetup = Notification.Name("SideScrollShowMacSetup")
+    static let uninstallRequested = Notification.Name("SideScrollUninstallRequested")
+}
+
 final class SettingsSelection: ObservableObject {
     @Published var tab: SettingsTab = .general
 }
@@ -135,6 +140,8 @@ private func percent(_ v: Double) -> String { "\(Int((v * 100).rounded()))%" }
 private struct GeneralPane: View {
     @ObservedObject var store: Store
     @State private var launchAtLogin = LoginItem.isEnabled
+    @State private var toolLink = Automation.installedToolLink
+    @State private var toolError = false
 
     var body: some View {
         Section(title: "SideScroll") {
@@ -145,6 +152,7 @@ private struct GeneralPane: View {
             }))
             Toggle("Restore column order after restart", isOn: $store.config.restoreSession)
             Toggle("Show column position in the menu bar", isOn: $store.config.showPositionInMenuBar)
+            Toggle("Show the strip indicator while navigating (hold ⌃⌥ to keep it up)", isOn: $store.config.showStripIndicator)
         }
         Section(title: "New windows") {
             Picker("Open new windows", selection: $store.config.newWindowPosition) {
@@ -154,6 +162,28 @@ private struct GeneralPane: View {
             Toggle("Don't let background apps steal focus", isOn: $store.config.preventFocusStealing)
             Toggle("Float dialogs, previews and fixed-size windows", isOn: $store.config.autoFloatDialogs)
         }
+        Section(title: "Automation") {
+            Text("Every action has a sidescroll:// link, e.g. sidescroll://focus-left, plus pause, resume, toggle and settings. Raycast script commands are in the repository's raycast folder.")
+                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            HStack {
+                if let link = toolLink {
+                    Text("Command-line tool: \(link)").font(.callout)
+                    Spacer()
+                    Button("Remove") { Automation.uninstallTool(); toolLink = Automation.installedToolLink }
+                } else {
+                    Text("Command-line tool not installed").font(.callout).foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Install Command-Line Tool") {
+                        if Automation.installTool() == nil { toolError = true }
+                        toolLink = Automation.installedToolLink
+                    }
+                }
+            }
+            if toolError {
+                Text("No writable bin folder found. Add ~/.local/bin to your PATH and try again.")
+                    .font(.caption).foregroundColor(.orange)
+            }
+        }
         Section(title: "About") {
             HStack {
                 Text("Version \(UpdateChecker.shared.currentVersion)")
@@ -161,6 +191,11 @@ private struct GeneralPane: View {
                 Button("Check for Updates…") { UpdateChecker.shared.checkInteractively() }
             }
             Text("Settings live in \(store.directory.path)").font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
+            HStack {
+                Button("Mac Setup & Guide…") { NotificationCenter.default.post(name: .showMacSetup, object: nil) }
+                Spacer()
+                Button("Uninstall SideScroll…") { NotificationCenter.default.post(name: .uninstallRequested, object: nil) }
+            }
         }
     }
 }
@@ -242,6 +277,7 @@ private struct TrackpadPane: View {
         Section(title: "Mouse") {
             Toggle("Hold ⌃⌥ and scroll to move along the strip", isOn: $store.config.modifierScroll)
             Toggle("Focus follows mouse", isOn: $store.config.focusFollowsMouse)
+            Toggle("Mouse follows focus (keyboard moves the pointer to the focused window)", isOn: $store.config.mouseFollowsFocus)
             Toggle("Drag a window onto another column to reorder", isOn: $store.config.dragToReorder)
         }
     }

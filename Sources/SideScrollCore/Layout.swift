@@ -84,7 +84,7 @@ public enum Layout {
     /// Pixel width of a column for a given viewport width. Two 0.5 columns plus
     /// the gap between them fill the viewport exactly.
     public static func columnWidth(_ c: Column, _ viewportWidth: Double, _ gap: Double) -> Double {
-        (c.width * (viewportWidth + gap) - gap).rounded()
+        max((c.width * (viewportWidth + gap) - gap).rounded(), c.minWidth)
     }
 
     /// Left edge of every column in strip coordinates.

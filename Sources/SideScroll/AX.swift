@@ -107,13 +107,15 @@ final class AXWin {
     }
 
     func focus() {
+        // Activate first: activating brings the app's own front window up,
+        // so raising afterwards makes sure it is this one.
+        if let running = NSRunningApplication(processIdentifier: pid), !running.isActive {
+            running.activate(options: [.activateIgnoringOtherApps])
+        }
         let app = AXUIElementCreateApplication(pid)
         AXUIElementSetAttributeValue(element, kAXMainAttribute as CFString, kCFBooleanTrue)
         AXUIElementSetAttributeValue(app, kAXFocusedWindowAttribute as CFString, element)
         AXUIElementPerformAction(element, kAXRaiseAction as CFString)
-        if let running = NSRunningApplication(processIdentifier: pid), !running.isActive {
-            running.activate(options: [.activateIgnoringOtherApps])
-        }
     }
 
     func close() {

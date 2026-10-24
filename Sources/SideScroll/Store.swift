@@ -14,6 +14,8 @@ final class Store: ObservableObject {
     @Published var recordingShortcut = false
 
     let directory: URL
+    /// Set while uninstalling so nothing gets written back.
+    var persistenceDisabled = false
 
     private init() {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
@@ -38,6 +40,7 @@ final class Store: ObservableObject {
     }
 
     private func save<T: Encodable>(_ value: T, _ name: String) {
+        guard !persistenceDisabled else { return }
         let enc = JSONEncoder()
         enc.outputFormatting = [.prettyPrinted, .sortedKeys]
         guard let data = try? enc.encode(value) else { return }

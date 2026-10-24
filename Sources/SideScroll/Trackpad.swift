@@ -32,6 +32,8 @@ final class TrackpadMonitor {
     func stop() {
         cmt_stop()
         TrackpadMonitor.shared = nil
+        tracking = false
+        locked = false
     }
 
     private func frame(count: Int, x: Float, y: Float, time: Double) {

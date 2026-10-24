@@ -16,6 +16,8 @@ final class ManagedWindow {
     var lastFrame: CGRect?
     var lastSetAt: CFTimeInterval = 0
     var originalSize: CGSize
+    /// Narrowest width the app accepted when asked for less (0 = none seen).
+    var minWidth: Double = 0
     /// Where it sat before being minimized or hidden, to put it back there.
     var parkedAt: (key: StripKey, column: Int)?
 
@@ -45,6 +47,7 @@ final class WindowManager {
     let border = FocusBorder()
     let dim = DimOverlay()
     let tabBars = TabBars()
+    let indicator = StripIndicator()
     let trackpad = TrackpadMonitor()
     var trackpadRunning = false
 
@@ -53,6 +56,7 @@ final class WindowManager {
     var cancellables: Set<AnyCancellable> = []
     var reconcileTimer: Timer?
     var saveWork: DispatchWorkItem?
+    var wakeWork: DispatchWorkItem?
 
     // Interaction state
     var restoring = false
@@ -64,6 +68,9 @@ final class WindowManager {
     var scrollKey: StripKey?
     var scrollSettleWork: DispatchWorkItem?
     var lastMouseMove: CFTimeInterval = 0
+    /// ⌃⌥ is held: keep the strip indicator on screen.
+    var modifiersHeld = false
+    var indicatorKey: StripKey?
 
     /// Menu bar text, e.g. "2/5".
     var onStatusChange: ((String) -> Void)?
@@ -91,6 +98,19 @@ final class WindowManager {
             NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in
                 self?.screensChanged()
             },
+            // After sleep, a locked screen or displays waking up, set up again.
+            ws.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
+                self?.recoverAfterWake()
+            },
+            ws.addObserver(forName: NSWorkspace.screensDidWakeNotification, object: nil, queue: .main) { [weak self] _ in
+                self?.recoverAfterWake()
+            },
+            ws.addObserver(forName: NSWorkspace.sessionDidBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
+                self?.recoverAfterWake()
+            },
+            DistributedNotificationCenter.default().addObserver(forName: NSNotification.Name("com.apple.screenIsUnlocked"), object: nil, queue: .main) { [weak self] _ in
+                self?.recoverAfterWake()
+            },
         ]
 
         restoring = true
@@ -110,6 +130,8 @@ final class WindowManager {
         animator.onStep = { [weak self] in self?.updateDecorations() }
         animator.onSettle = { [weak self] in self?.updateDecorations() }
         tabBars.onSelect = { [weak self] col, i in self?.selectTab(column: col, index: i) }
+        indicator.onSelect = { [weak self] i in self?.indicatorSelect(i) }
+        indicator.onReorder = { [weak self] from, to in self?.indicatorReorder(from, to) }
 
         // Safety net for events macOS does not report (Mission Control moves, etc.).
         reconcileTimer = Timer.scheduledTimer(withTimeInterval: 2.5, repeats: true) { [weak self] _ in
@@ -122,6 +144,7 @@ final class WindowManager {
     /// Puts every window back on screen so nothing is left parked off an edge.
     func stop() {
         reconcileTimer?.invalidate()
+        indicator.hide()
         trackpad.stop()
         animator.cancelAll()
         bringAllOnScreen()
@@ -136,7 +159,11 @@ final class WindowManager {
             reconcile(animate: false)
             layoutAll(animate: true)
         } else {
+            swipeKey = nil
+            dragging = nil
+            scrollKey = nil
             animator.cancelAll()
+            indicator.hide()
             bringAllOnScreen()
             border.hide()
             dim.hide()
@@ -165,6 +192,30 @@ final class WindowManager {
         }
         reconcile(animate: false)
         layoutAll(animate: true)
+    }
+
+    /// Displays, trackpads and Accessibility connections can all change while
+    /// the Mac sleeps. Rebuild what is needed once things settle.
+    func recoverAfterWake() {
+        wakeWork?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            // A swipe or drag cut off by sleep never sends its end event.
+            self.swipeKey = nil
+            self.dragging = nil
+            self.animator.cancelAll()
+            self.displays = Displays.all()
+            for app in NSWorkspace.shared.runningApplications { self.addApp(app) }
+            if self.config.swipeEnabled {
+                self.trackpad.stop()
+                self.trackpadRunning = self.trackpad.start()
+            }
+            for mw in self.windows.values { mw.lastFrame = nil }
+            self.reconcile(animate: false)
+            self.layoutAll(animate: false)
+        }
+        wakeWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5, execute: work)
     }
 
     func bringAllOnScreen() {
@@ -270,9 +321,12 @@ final class WindowManager {
     /// window of the same app just left the screen at the same spot, the new one
     /// takes over its column instead of opening a new one.
     func adoptTabSwap(_ mw: ManagedWindow, onscreen: Set<WinID>? = nil) -> StripKey? {
-        guard let f = mw.ax.frame else { return nil }
+        guard let f = mw.ax.frame, let d = Displays.containing(f, in: displays) else { return nil }
         let live = onscreen ?? Set(onScreenWindowIDs())
-        for (key, strip) in strips {
+        // Only the strip on screen right now: windows on other Spaces are off
+        // screen too and must not be mistaken for the tab that was just left.
+        let key = activeKey(for: d)
+        if let strip = strips[key] {
             for id in strip.allWindows where id != mw.id && !live.contains(id) {
                 guard let other = windows[id], other.ax.pid == mw.ax.pid,
                       let last = other.lastFrame, abs(last.minX - f.minX) < 4, abs(last.minY - f.minY) < 4,
@@ -405,6 +459,8 @@ final class WindowManager {
 
     /// Brings the strips in line with what is actually on screen.
     func reconcile(animate: Bool) {
+        // A drag whose mouse-up we never saw must not block reconciling forever.
+        if dragging != nil && NSEvent.pressedMouseButtons & 1 == 0 { finishDrag() }
         guard store.enabled, swipeKey == nil, dragging == nil else { return }
         displays = Displays.all()
         let infos = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []
@@ -436,10 +492,14 @@ final class WindowManager {
             for id in strip.allWindows where !onscreen.contains(id) {
                 guard let mw = windows[id] else { strips[key]?.remove(id); touched.insert(key); continue }
                 if mw.ax.frame == nil {
+                    // Closed without telling us.
+                    observers[mw.ax.pid]?.unwatch(mw.ax.element)
                     windows[id] = nil
+                    animator.cancel(id)
                     if focusedID == id { focusedID = nil }
                 } else if mw.ax.isMinimized || NSRunningApplication(processIdentifier: mw.ax.pid)?.isHidden == true {
-                    if case .column(let c, _)? = strip.locate(id) { mw.parkedAt = (key, c) }
+                    // Read the live strip: earlier removals in this pass shift columns.
+                    if case .column(let c, _)? = strips[key]?.locate(id) { mw.parkedAt = (key, c) }
                 }
                 strips[key]?.remove(id)
                 touched.insert(key)

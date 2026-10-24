@@ -6,25 +6,35 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build:
     runs-on: macos-15
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@v4
 
       - name: Toolchain
         run: swift --version
 
+      - name: Check scripts
+        run: |
+          bash -n install.sh
+          bash -n uninstall.sh
+          sh -n Resources/sidescroll
+          for f in scripts/*.sh raycast/*.sh; do bash -n "$f"; done
+
       - name: Unit tests
         run: swift test
 
+      - name: Version
+        id: version
+        run: echo "version=$(cat VERSION).${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+
       - name: Build app (universal)
-        run: |
-          VERSION="$(cat VERSION).${{ github.run_number }}"
-          echo "APP_VERSION=$VERSION" >> "$GITHUB_ENV"
-          VERSION="$VERSION" BUILD_NUMBER="${{ github.run_number }}" scripts/build-app.sh
+        run: VERSION="${{ steps.version.outputs.version }}" BUILD_NUMBER="${{ github.run_number }}" scripts/build-app.sh
 
       - name: Package
         run: scripts/package.sh
@@ -33,22 +43,39 @@ jobs:
         run: |
           plutil -lint build/SideScroll.app/Contents/Info.plist
           lipo -info build/SideScroll.app/Contents/MacOS/SideScroll
-          /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" build/SideScroll.app/Contents/Info.plist
+          test -x build/SideScroll.app/Contents/Resources/sidescroll
+          build/SideScroll.app/Contents/MacOS/SideScroll --list-actions | grep -qx focus-left
+          if build/SideScroll.app/Contents/MacOS/SideScroll --list-actions | grep -qx close-window; then
+            echo "close-window must not be reachable from automation"; exit 1
+          fi
+          /usr/libexec/PlistBuddy -c "Print :CFBundleURLTypes:0:CFBundleURLSchemes:0" build/SideScroll.app/Contents/Info.plist
 
       - uses: actions/upload-artifact@v4
         with:
-          name: SideScroll-${{ env.APP_VERSION }}
+          name: SideScroll-${{ steps.version.outputs.version }}
           path: dist/*
 
+  release:
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: SideScroll-${{ needs.build.outputs.version }}
+          path: dist
+
       - name: Publish release
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.build.outputs.version }}
         run: |
-          TAG="v$APP_VERSION"
-          gh release create "$TAG" dist/SideScroll.zip dist/SideScroll.dmg \
+          (cd dist && sha256sum SideScroll.zip SideScroll.dmg > SHA256SUMS.txt)
+          gh release create "v$VERSION" dist/SideScroll.zip dist/SideScroll.dmg dist/SHA256SUMS.txt \
             --repo "${{ github.repository }}" \
-            --title "SideScroll $APP_VERSION" \
+            --title "SideScroll $VERSION" \
             --target "${{ github.sha }}" \
             --latest \
             --notes "Install or update with one line in Terminal:
@@ -57,4 +84,7 @@ jobs:
           curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/main/install.sh | bash
           \`\`\`
 
-          Or download **SideScroll.dmg**, drag it to Applications, then allow it under System Settings → Privacy & Security → Open Anyway."
+          Or download **SideScroll.dmg**, drag it to Applications, then allow it under System Settings → Privacy & Security → Open Anyway. Checksums are in SHA256SUMS.txt.
+
+          Uninstall: menu bar icon → Uninstall SideScroll…, or
+          \`curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/main/uninstall.sh | bash\`"

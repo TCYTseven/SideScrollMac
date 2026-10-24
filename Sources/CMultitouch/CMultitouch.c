@@ -82,12 +82,18 @@ bool cmt_start(cmt_frame_handler handler) {
     g_devices = createList();
     if (!g_devices) return false;
     CFIndex n = CFArrayGetCount(g_devices);
+    if (n == 0) {
+        // No trackpad right now; let a later call try again.
+        CFRelease(g_devices);
+        g_devices = NULL;
+        return false;
+    }
     for (CFIndex i = 0; i < n; i++) {
         MTDeviceRef dev = (MTDeviceRef)CFArrayGetValueAtIndex(g_devices, i);
         reg(dev, contact_callback);
         start(dev, 0);
     }
-    return n > 0;
+    return true;
 }
 
 void cmt_stop(void) {
