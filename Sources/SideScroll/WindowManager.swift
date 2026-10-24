@@ -71,6 +71,8 @@ final class WindowManager {
     // MARK: Lifecycle
 
     func start() {
+        // A hung app must not freeze tiling for the default 6 seconds.
+        AXUIElementSetMessagingTimeout(AXUIElementCreateSystemWide(), 1.0)
         displays = Displays.all()
         let ws = NSWorkspace.shared.notificationCenter
         notificationTokens = [
