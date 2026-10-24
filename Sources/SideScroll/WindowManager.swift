@@ -491,7 +491,8 @@ final class WindowManager {
         // Keep snapshots of displays that are not connected right now.
         if let old = store.loadSession() {
             let have = Set(snaps.map { $0.display })
-            snaps += old.strips.filter { !have.contains($0.display) && !displays.contains(where: { d in d.uuid == $0.display }) }
+            let connected = Set(displays.map { $0.uuid })
+            snaps += old.strips.filter { !have.contains($0.display) && !connected.contains($0.display) }
         }
         store.saveSession(SessionSnapshot(strips: snaps))
     }
