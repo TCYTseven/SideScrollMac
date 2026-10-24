@@ -1,0 +1,60 @@
+name: Build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Toolchain
+        run: swift --version
+
+      - name: Unit tests
+        run: swift test
+
+      - name: Build app (universal)
+        run: |
+          VERSION="$(cat VERSION).${{ github.run_number }}"
+          echo "APP_VERSION=$VERSION" >> "$GITHUB_ENV"
+          VERSION="$VERSION" BUILD_NUMBER="${{ github.run_number }}" scripts/build-app.sh
+
+      - name: Package
+        run: scripts/package.sh
+
+      - name: Check bundle
+        run: |
+          plutil -lint build/SideScroll.app/Contents/Info.plist
+          lipo -info build/SideScroll.app/Contents/MacOS/SideScroll
+          /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" build/SideScroll.app/Contents/Info.plist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SideScroll-${{ env.APP_VERSION }}
+          path: dist/*
+
+      - name: Publish release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="v$APP_VERSION"
+          gh release create "$TAG" dist/SideScroll.zip dist/SideScroll.dmg \
+            --repo "${{ github.repository }}" \
+            --title "SideScroll $APP_VERSION" \
+            --target "${{ github.sha }}" \
+            --latest \
+            --notes "Install or update with one line in Terminal:
+
+          \`\`\`
+          curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/main/install.sh | bash
+          \`\`\`
+
+          Or download **SideScroll.dmg**, drag it to Applications, then allow it under System Settings → Privacy & Security → Open Anyway."

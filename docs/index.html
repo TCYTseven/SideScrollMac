@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SideScroll</title>
+<meta name="description" content="A free, open-source scrolling window manager for macOS.">
+<style>
+  :root {
+    --bg: #0f1218; --panel: #171b24; --text: #e8ebf2; --muted: #8b93a7;
+    --accent: #4c8dff; --win: #252b38; --win-border: #343c4e; --gap: 10px;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --bg: #f4f6fa; --panel: #ffffff; --text: #141822; --muted: #5d6578;
+      --win: #e8ecf4; --win-border: #cfd6e4;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 16px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, sans-serif; }
+  main { max-width: 1040px; margin: 0 auto; padding: 48px 16px 80px; }
+  h1 { font-size: clamp(32px, 6vw, 52px); line-height: 1.1; margin: 0 0 12px; letter-spacing: -0.02em; }
+  .lede { color: var(--muted); font-size: 19px; max-width: 640px; margin: 0 0 28px; }
+  pre { background: var(--panel); border: 1px solid var(--win-border); border-radius: 10px;
+        padding: 14px 16px; overflow-x: auto; font-size: 14px; }
+  .buttons { display: flex; gap: 10px; flex-wrap: wrap; margin: 16px 0 40px; }
+  .btn { display: inline-block; padding: 10px 16px; border-radius: 9px; background: var(--accent);
+         color: #fff; text-decoration: none; font-weight: 600; }
+  .btn.secondary { background: transparent; color: var(--text); border: 1px solid var(--win-border); }
+  h2 { margin: 48px 0 12px; font-size: 26px; }
+
+  /* Demo */
+  .screen { position: relative; height: 340px; border-radius: 14px; overflow: hidden;
+            background: linear-gradient(160deg, #2b3550, #161b28); border: 1px solid var(--win-border);
+            outline: none; }
+  .screen:focus-visible { box-shadow: 0 0 0 3px var(--accent); }
+  .menubar { height: 22px; background: rgba(0,0,0,.35); color: #cfd5e3; font-size: 12px;
+             display: flex; align-items: center; justify-content: space-between; padding: 0 10px; }
+  .strip { position: absolute; top: 32px; bottom: 10px; left: 0; right: 0; }
+  .col { position: absolute; top: 0; bottom: 0; display: flex; flex-direction: column; gap: var(--gap);
+         transition: left .32s cubic-bezier(.2,.9,.25,1), width .32s cubic-bezier(.2,.9,.25,1), opacity .2s; }
+  .col.tabbed { gap: 0; }
+  .tabbar { display: flex; gap: 2px; height: 22px; margin-bottom: 4px; padding: 2px;
+            background: rgba(255,255,255,.12); border-radius: 6px; font-size: 11px; }
+  .tabbar span { flex: 1; text-align: center; border-radius: 4px; color: #cfd5e3; white-space: nowrap;
+                 overflow: hidden; text-overflow: ellipsis; padding: 0 4px; line-height: 18px; }
+  .tabbar span.on { background: var(--accent); color: #fff; }
+  .win { flex: 1; border-radius: 9px; background: #1e2433; border: 1px solid #3a4359;
+         display: flex; flex-direction: column; overflow: hidden; min-height: 0; }
+  .win.hidden { display: none; }
+  .win .bar { height: 20px; background: #2a3145; display: flex; align-items: center; gap: 5px; padding: 0 8px;
+              font-size: 11px; color: #b4bccd; }
+  .win .bar i { width: 8px; height: 8px; border-radius: 50%; background: #586179; }
+  .win .body { flex: 1; padding: 10px; font-size: 12px; color: #8c95ab; }
+  .win.focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
+  .pin-l, .pin-r { z-index: 2; }
+  .keys { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 8px; margin-top: 14px; }
+  .keys button { text-align: left; background: var(--panel); color: var(--text); border: 1px solid var(--win-border);
+                 border-radius: 8px; padding: 8px 10px; cursor: pointer; font: inherit; font-size: 14px; }
+  .keys button:hover { border-color: var(--accent); }
+  kbd { font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--win); border: 1px solid var(--win-border);
+        border-radius: 5px; padding: 1px 5px; margin-right: 6px; }
+  .hint { color: var(--muted); font-size: 14px; margin-top: 8px; }
+  ul.features { padding-left: 20px; }
+  ul.features li { margin: 6px 0; }
+  footer { color: var(--muted); font-size: 14px; margin-top: 60px; }
+  @media (max-width: 600px) { .screen { height: 260px; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>SideScroll</h1>
+  <p class="lede">A scrolling window manager for macOS. Windows sit side by side on one endless strip instead of being squeezed into a grid. Free and open source.</p>
+
+  <pre><code>curl -fsSL https://raw.githubusercontent.com/TCYTseven/SideScrollMac/main/install.sh | bash</code></pre>
+  <div class="buttons">
+    <a class="btn" href="https://github.com/TCYTseven/SideScrollMac/releases/latest/download/SideScroll.dmg">Download .dmg</a>
+    <a class="btn secondary" href="https://github.com/TCYTseven/SideScrollMac">Source on GitHub</a>
+  </div>
+
+  <h2 id="demo">Try it here</h2>
+  <div class="screen" id="screen" tabindex="0" aria-label="Interactive demo. Click, then use Control-Option shortcuts or the buttons below.">
+    <div class="menubar"><span>Finder&nbsp;&nbsp;File&nbsp;&nbsp;Edit&nbsp;&nbsp;View</span><span id="pos">1/4</span></div>
+    <div class="strip" id="strip"></div>
+  </div>
+  <p class="hint">Click the screen and press the real shortcuts (hold ⌃⌥, or just the letter keys here), swipe sideways with two fingers, or use the buttons.</p>
+  <div class="keys" id="keys"></div>
+
+  <h2>What it does</h2>
+  <ul class="features">
+    <li>Three- or four-finger trackpad swipe moves along the strip, with momentum and snapping.</li>
+    <li>Width presets, wider / narrower, full width and centering, one key each.</li>
+    <li>Stack windows into a column, flip it to tabs, pin a column to a screen edge.</li>
+    <li>Dialogs and fixed-size windows float automatically; per-app rules for the rest.</li>
+    <li>One strip per display and per Space. Column order survives restarts.</li>
+    <li>Every shortcut can be rebound. Needs only the Accessibility permission.</li>
+  </ul>
+
+  <footer>macOS 13 or newer, Apple silicon and Intel. MIT licensed.</footer>
+</main>
+
+<script>
+(() => {
+  const apps = ["Safari", "Xcode", "Terminal", "Notes", "Mail", "Music", "Figma", "Slack"];
+  let nextId = 0;
+  const win = () => ({ id: nextId++, app: apps[nextId % apps.length] });
+  const presets = [1/3, 1/2, 2/3, 3/4];
+  const state = {
+    cols: [0.5, 0.5, 0.5, 0.5].map(w => ({ wins: [win()], active: 0, width: w, tabbed: false })),
+    focus: 0, offset: 0, pin: null
+  };
+  const screen = document.getElementById("screen");
+  const strip = document.getElementById("strip");
+  const pos = document.getElementById("pos");
+  const GAP = 10, PAD = 10;
+
+  const W = () => screen.clientWidth - PAD * 2;
+  const colW = (c, vw) => c.width * (vw + GAP) - GAP;
+
+  function viewport() {
+    let x = PAD, w = W();
+    if (state.pin) { const pw = colW(state.pin.col, W()); if (state.pin.side === "left") x += pw + GAP; w -= pw + GAP; }
+    return { x, w };
+  }
+
+  function xs(vw) { let x = 0; return state.cols.map(c => { const r = x; x += colW(c, vw) + GAP; return r; }); }
+
+  function show() {
+    const vp = viewport();
+    const X = xs(vp.w);
+    const c = state.cols[state.focus];
+    if (!c) return;
+    const x = X[state.focus], w = colW(c, vp.w);
+    if (x < state.offset) state.offset = x;
+    if (x + w > state.offset + vp.w) state.offset = x + w - vp.w;
+  }
+
+  const els = new Map();
+  let instant = false;
+
+  function render() {
+    const vp = viewport();
+    const X = xs(vp.w);
+    const seen = new Set();
+    const draw = (c, left, width, focused, extra) => {
+      seen.add(c);
+      let el = els.get(c);
+      const fresh = !el;
+      if (fresh) { el = document.createElement("div"); els.set(c, el); strip.appendChild(el); }
+      const tabbed = c.tabbed && c.wins.length > 1;
+      el.className = "col" + (tabbed ? " tabbed" : "") + (extra || "");
+      el.style.transition = instant || fresh ? "none" : "";
+      let html = "";
+      if (tabbed) {
+        html += '<div class="tabbar">' + c.wins.map((w, i) => `<span class="${i === c.active ? "on" : ""}">${w.app}</span>`).join("") + "</div>";
+      }
+      c.wins.forEach((w, i) => {
+        const cls = "win" + (focused && i === c.active ? " focus" : "") + (tabbed && i !== c.active ? " hidden" : "");
+        html += `<div class="${cls}"><div class="bar"><i></i><i></i><i></i>&nbsp;${w.app}</div><div class="body">${Math.round(c.width * 100)}% wide</div></div>`;
+      });
+      el.innerHTML = html;
+      el.style.left = left + "px";
+      el.style.width = width + "px";
+      // Like the real app: columns scrolled out of the viewport are parked out of sight.
+      const out = !extra && (left + width <= vp.x + 1 || left >= vp.x + vp.w - 1);
+      el.style.opacity = out ? "0" : "1";
+    };
+    state.cols.forEach((c, i) => draw(c, vp.x + X[i] - state.offset, colW(c, vp.w), i === state.focus && !state.pinFocused));
+    if (state.pin) {
+      const pw = colW(state.pin.col, W());
+      draw(state.pin.col, state.pin.side === "left" ? PAD : PAD + W() - pw, pw, state.pinFocused, " pin-" + state.pin.side[0]);
+    }
+    for (const [c, el] of els) if (!seen.has(c)) { el.remove(); els.delete(c); }
+    pos.textContent = state.pinFocused ? "📌" : `${state.focus + 1}/${state.cols.length}`;
+  }
+
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const cur = () => state.cols[state.focus];
+  const actions = {
+    "focusLeft":  ["H", "Focus left", () => { if (state.pinFocused) return; if (state.focus > 0) state.focus--; else if (state.pin) state.pinFocused = true; }],
+    "focusRight": ["L", "Focus right", () => { if (state.pinFocused) { state.pinFocused = false; return; } state.focus = clamp(state.focus + 1, 0, state.cols.length - 1); }],
+    "focusUp":    ["K", "Focus up in stack", () => { const c = cur(); c.active = clamp(c.active - 1, 0, c.wins.length - 1); }],
+    "focusDown":  ["J", "Focus down in stack", () => { const c = cur(); c.active = clamp(c.active + 1, 0, c.wins.length - 1); }],
+    "moveLeft":   ["⇧H", "Move column left", () => { const i = state.focus; if (i > 0) { [state.cols[i - 1], state.cols[i]] = [state.cols[i], state.cols[i - 1]]; state.focus--; } }],
+    "moveRight":  ["⇧L", "Move column right", () => { const i = state.focus; if (i < state.cols.length - 1) { [state.cols[i + 1], state.cols[i]] = [state.cols[i], state.cols[i + 1]]; state.focus++; } }],
+    "cycle":      ["R", "Cycle width", () => { const c = cur(); c.width = presets.find(p => p > c.width + 0.01) ?? presets[0]; }],
+    "full":       ["F", "Full width", () => { const c = cur(); if (c.prev) { c.width = c.prev; c.prev = null; } else { c.prev = c.width; c.width = 1; } }],
+    "center":     ["C", "Center column", () => { const vp = viewport(); const X = xs(vp.w); state.offset = X[state.focus] + colW(cur(), vp.w) / 2 - vp.w / 2; return "noshow"; }],
+    "stackLeft":  ["[", "Stack into left column", () => {
+      const i = state.focus; if (i === 0) return; const c = cur(); const w = c.wins.splice(c.active, 1)[0];
+      if (!c.wins.length) state.cols.splice(i, 1); else c.active = clamp(c.active, 0, c.wins.length - 1);
+      const t = state.cols[i - 1]; t.wins.push(w); t.active = t.wins.length - 1; state.focus = i - 1; }],
+    "popRight":   ["⇧]", "Pop out to the right", () => {
+      const c = cur(); if (c.wins.length < 2) return; const w = c.wins.splice(c.active, 1)[0];
+      c.active = clamp(c.active, 0, c.wins.length - 1);
+      state.cols.splice(state.focus + 1, 0, { wins: [w], active: 0, width: 0.5, tabbed: false }); state.focus++; }],
+    "tabs":       ["⇧T", "Toggle tabbed column", () => { cur().tabbed = !cur().tabbed; }],
+    "pin":        ["P", "Pin to left edge", () => {
+      if (state.pin) { state.cols.unshift(state.pin.col); state.pin = null; state.pinFocused = false; state.focus = 0; return; }
+      if (state.cols.length < 2) return; const c = state.cols.splice(state.focus, 1)[0]; c.width = Math.min(c.width, 0.5);
+      state.pin = { side: "left", col: c }; state.pinFocused = true; state.focus = clamp(state.focus, 0, state.cols.length - 1); }],
+    "open":       ["N", "Open a new window", () => { state.cols.splice(state.focus + 1, 0, { wins: [win()], active: 0, width: 0.5, tabbed: false }); state.focus++; }],
+    "close":      ["W", "Close window", () => {
+      const c = cur(); if (state.cols.length === 1 && c.wins.length === 1) return; c.wins.splice(c.active, 1);
+      if (!c.wins.length) { state.cols.splice(state.focus, 1); state.focus = clamp(state.focus, 0, state.cols.length - 1); }
+      else c.active = clamp(c.active, 0, c.wins.length - 1); }],
+  };
+
+  function run(name) {
+    const r = actions[name][2]();
+    if (r !== "noshow") show();
+    render();
+  }
+
+  const keys = document.getElementById("keys");
+  for (const [name, [key, label]] of Object.entries(actions)) {
+    const b = document.createElement("button");
+    b.innerHTML = `<kbd>⌃⌥${key}</kbd>${label}`;
+    b.addEventListener("click", () => { run(name); screen.focus(); });
+    keys.appendChild(b);
+  }
+
+  const keymap = { h: "focusLeft", arrowleft: "focusLeft", l: "focusRight", arrowright: "focusRight",
+                   k: "focusUp", arrowup: "focusUp", j: "focusDown", arrowdown: "focusDown",
+                   r: "cycle", f: "full", c: "center", "[": "stackLeft", p: "pin", n: "open", w: "close" };
+  screen.addEventListener("keydown", e => {
+    const k = e.key.toLowerCase();
+    let name = keymap[k];
+    if (e.shiftKey && (k === "h" || k === "arrowleft")) name = "moveLeft";
+    if (e.shiftKey && (k === "l" || k === "arrowright")) name = "moveRight";
+    if (e.shiftKey && k === "t") name = "tabs";
+    if (e.shiftKey && (k === "]" || k === "}")) name = "popRight";
+    if (name) { e.preventDefault(); run(name); }
+  });
+
+  // Two-finger horizontal scroll stands in for the trackpad swipe.
+  let settle;
+  screen.addEventListener("wheel", e => {
+    if (Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return;
+    e.preventDefault();
+    const vp = viewport(); const X = xs(vp.w);
+    const total = X.length ? X[X.length - 1] + colW(state.cols[X.length - 1], vp.w) : 0;
+    state.offset = clamp(state.offset + e.deltaX, 0, Math.max(total - vp.w, 0));
+    instant = true;
+    render();
+    instant = false;
+    clearTimeout(settle);
+    settle = setTimeout(() => {
+      const mid = state.offset + vp.w / 2;
+      let best = 0, dist = Infinity;
+      X.forEach((x, i) => { const d = Math.abs(x + colW(state.cols[i], vp.w) / 2 - mid); if (d < dist) { dist = d; best = i; } });
+      state.focus = best; state.pinFocused = false; show(); render();
+    }, 160);
+  }, { passive: false });
+
+  window.addEventListener("resize", () => { show(); render(); });
+  render();
+})();
+</script>
+</body>
+</html>
