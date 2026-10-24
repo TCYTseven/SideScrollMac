@@ -64,6 +64,22 @@ extension Strip {
         return true
     }
 
+    /// Swaps one window for another in place (native tab switches).
+    @discardableResult
+    public mutating func replace(_ old: WinID, with new: WinID) -> Bool {
+        guard !contains(new), let loc = locate(old) else { return false }
+        switch loc {
+        case .column(let ci, let wi):
+            columns[ci].windows[wi] = new
+            columns[ci].heightWeights[new] = columns[ci].heightWeights.removeValue(forKey: old)
+        case .pinned(let side, let wi):
+            var p = pinned(side)!
+            p.windows[wi] = new
+            setPinned(side, p)
+        }
+        return true
+    }
+
     mutating func setPinned(_ side: PinSide, _ c: Column?) {
         if side == .left { pinnedLeft = c } else { pinnedRight = c }
     }
