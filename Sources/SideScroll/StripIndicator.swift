@@ -55,7 +55,7 @@ final class StripIndicator {
     func show(tiles: [IndicatorTile], on visible: CGRect, persistent: Bool) {
         guard !tiles.isEmpty else { hide(); return }
         tilesView.tiles = tiles
-        let size = tilesView.fittingSize(maxWidth: visible.width - 40)
+        let size = tilesView.preferredSize(maxWidth: visible.width - 40)
         tilesView.frame = NSRect(origin: .zero, size: size)
         let axFrame = CGRect(x: visible.midX - size.width / 2, y: visible.maxY - size.height - 18,
                              width: size.width, height: size.height)
@@ -118,7 +118,7 @@ final class IndicatorTilesView: NSView {
     override var isFlipped: Bool { true }
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
-    func fittingSize(maxWidth: CGFloat) -> NSSize {
+    func preferredSize(maxWidth: CGFloat) -> NSSize {
         let n = CGFloat(tiles.count)
         let w = pad * 2 + n * tile + max(n - 1, 0) * spacing
         return NSSize(width: min(w, maxWidth), height: tile + pad * 2 + 6)
